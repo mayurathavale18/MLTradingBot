@@ -1,13 +1,15 @@
-import logging
-from dotenv import load_dotenv
+import streamlit as st
 import os
+import logging
+import time
+from threading import Thread
+from dotenv import load_dotenv
+from datetime import datetime
 from lumibot.brokers import Alpaca
-from lumibot.backtesting import YahooDataBacktesting
 from lumibot.strategies.strategy import Strategy
 from lumibot.traders import Trader
-from datetime import datetime 
-from alpaca_trade_api import REST 
-from timedelta import Timedelta 
+from alpaca_trade_api import REST
+from timedelta import Timedelta
 from finbert_utils import estimate_sentiment
 
 # Set up logging
@@ -30,9 +32,9 @@ ALPACA_CREDS = {
 }
 
 class MLTrader(Strategy): 
-    def initialize(self, symbol:str="AAPL", cash_at_risk:float=.5): 
+    def initialize(self, symbol:str="SPY", cash_at_risk:float=.5): 
         self.symbol = symbol
-        self.sleeptime = "24H" 
+        self.sleeptime = "5m" 
         self.last_trade = None 
         self.cash_at_risk = cash_at_risk
         self.api = REST(base_url=BASE_URL, key_id=API_KEY, secret_key=API_SECRET)
@@ -91,22 +93,44 @@ class MLTrader(Strategy):
                 log_trade_details(order) #log the selling order
                 self.last_trade = "sell"
 
-start_date = datetime(2024,5,1)
-end_date = datetime(2024,10,7) 
-broker = Alpaca(ALPACA_CREDS) 
-strategy = MLTrader(name='mlstrat', broker=broker, 
-                    parameters={"symbol":"AAPL", 
-                                "cash_at_risk":.5})
-strategy.backtest(
-    YahooDataBacktesting, 
-    start_date, 
-    end_date, 
-    parameters={"symbol":"AAPL", "cash_at_risk":.5}
-) 
-logfile_path = "MLTradingBot/logs/itrader_log.txt" 
-#trader =Trader()
-broker = Alpaca(ALPACA_CREDS)
-MYstrategy = MLTrader(broker=broker)
+# Define Streamlit app layout
+def main():
+    st.title("iTrader Trading Bot Interface")
 
-#trader.add_strategy(strategy)
-#trader.run_all()  #paper trading starts
+    # Create start button to run the bot
+    if st.button('Start Trading Bot'):
+        st.write("Bot started...")
+        trader_thread = Thread(target=start_trading_bot)
+        trader_thread.start()
+
+    # Create stop button to stop the bot
+    if st.button('Stop Trading Bot'):
+        st.write("Stopping the bot is not implemented here.")
+        # Implement your logic to stop the bot
+    
+    # Show trading log file content
+    log_file_path = "MLTradingBot/logs/itrader_log.txt"
+    if os.path.exists(log_file_path):
+        with open(log_file_path, 'r') as f:
+            log_content = f.read()
+            st.text_area("Trade Log", log_content, height=300)
+
+    # Auto-refresh every 5 seconds to show latest trades
+    st_autorefresh(interval=5000)
+
+# Function to start the trading bot
+def start_trading_bot():
+    start_date = datetime(2024,9,1)
+    end_date = datetime(2024,10,7)
+    broker = Alpaca(ALPACA_CREDS)
+    strategy = MLTrader(name='mlstrat', broker=broker, parameters={"symbol":"SPY", "cash_at_risk":.5})
+    trader = Trader()
+    trader.add_strategy(strategy)
+    trader.run_all()  # paper trading starts
+
+# Function to auto-refresh the Streamlit app
+def st_autorefresh(interval=5000):
+    st.experimental_rerun()
+
+if __name__ == "__main__":
+    main()
